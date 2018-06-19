@@ -13,6 +13,8 @@
 #include <string>
 #include "bitmap.h"
 
+
+#define  MAX_FRAME_COUNT		200
 // 需包含locale、string头文件、使用setlocale函数。
 std::wstring StringToWstring(const std::string str)
 {
@@ -282,6 +284,7 @@ END_MESSAGE_MAP()
 
 CParseVideoDlg::CParseVideoDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CParseVideoDlg::IDD, pParent),m_pdlgsdl(NULL)
+	, m_Indexbegin(_T(""))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -297,6 +300,7 @@ void CParseVideoDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_MFCEDITBROWSE_INPUT, m_editbrowseInput);
 	DDX_Control(pDX, IDC_PROGRESS_FORPARSE, m_parseProgress);
 	DDX_Control(pDX, IDC_STATIC_OUTPUT, m_outputinfo);
+	DDX_Text(pDX, IDC_EDIT_BEGINNUM, m_Indexbegin);
 }
 
 BEGIN_MESSAGE_MAP(CParseVideoDlg, CDialogEx)
@@ -353,21 +357,24 @@ BOOL CParseVideoDlg::OnInitDialog()
 
 	m_listFrames.SetExtendedStyle(dwStyle);
 
-	m_listFrames.InsertColumn(0,_T("编码帧序号"),LVCFMT_LEFT,100);//插入列
-	m_listFrames.InsertColumn(1,_T("显示帧序号"),LVCFMT_LEFT,100);
-	m_listFrames.InsertColumn(2,_T("是否关键帧"),LVCFMT_LEFT,100);
-	m_listFrames.InsertColumn(3,_T("视频帧宽和高"),LVCFMT_LEFT,120);
-	m_listFrames.InsertColumn(4,_T("解码后的原始数据类型"),LVCFMT_LEFT,200);
-	m_listFrames.InsertColumn(5,_T("宽高比"),LVCFMT_LEFT,100);
-	m_listFrames.InsertColumn(6,_T("显示时间戳"),LVCFMT_LEFT,100);
+	m_listFrames.InsertColumn(0,_T("编码帧序号"),LVCFMT_LEFT,120);//插入列
+	m_listFrames.InsertColumn(1,_T("显示帧序号"),LVCFMT_LEFT,120);
+	m_listFrames.InsertColumn(2,_T("是否关键帧"),LVCFMT_LEFT,120);
+	m_listFrames.InsertColumn(3,_T("视频帧宽和高"),LVCFMT_LEFT,140);
+	m_listFrames.InsertColumn(4,_T("解码后的原始数据类型"),LVCFMT_LEFT,220);
+	m_listFrames.InsertColumn(5,_T("宽高比"),LVCFMT_LEFT,120);
+	m_listFrames.InsertColumn(6,_T("显示时间戳"),LVCFMT_LEFT,120);
 
-	m_listFrames.InsertColumn(7,_T("图像大小"),LVCFMT_LEFT,100);
+	m_listFrames.InsertColumn(7,_T("图像大小"),LVCFMT_LEFT,120);
 	//int nRow = m_listFrames.InsertItem(0, _T("11"));//插入行
 
 
 	m_pdlgsdl = new CDlgSdlShow;
 	m_pdlgsdl->Create(IDD_DIALOG_SDL,this);
 	m_pdlgsdl->ShowWindow(SW_HIDE);
+
+	m_Indexbegin = _T("1");
+	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -442,13 +449,28 @@ BOOL CParseVideoDlg::ParseVideo(void)
 		MessageBox(_T("请选择文件"),_T("错误"),0);
 		return FALSE;
 	}
+
+	if(m_Indexbegin.IsEmpty())
+	{
+		MessageBox(_T("开始帧数不能为空"),_T("错误"),0);
+		return FALSE;
+	}
+	UpdateData();
+	//获取用户想解析开始的帧数
+	int nIndexBegin = _wtoi(m_Indexbegin.GetString())-1;
+
+	if(nIndexBegin<0)
+	{
+		MessageBox(_T("开始帧数太小"),_T("错误"),0);
+		return FALSE;
+	}
 	CleanItemData();
 
 	AVFormatContext *pFormatCtx;  
 	int             i, videoindex;  
 	AVCodecContext  *pCodecCtx;  
 	AVCodec         *pCodec;  
-	AVFrame *pFrame,*pFrameYUV;  
+	AVFrame *pFrame/*,*pFrameYUV*/;  
 	//AVFrame *pFrame;  
 //	unsigned char *out_buffer;  
 	AVPacket *packet;  
@@ -522,7 +544,7 @@ BOOL CParseVideoDlg::ParseVideo(void)
 			double dtmp = (double)duration / (double)AV_TIME_BASE;
 			nRange = dtmp*nfps;
 			secs  = duration / AV_TIME_BASE;
-			m_parseProgress.SetRange(0,100);
+			
 		}
 		
 		//if(secs>0)
@@ -540,20 +562,20 @@ BOOL CParseVideoDlg::ParseVideo(void)
 			nfps);
 
 
-
-
+		m_parseProgress.SetRange(0,200);
+		m_parseProgress.SetPos(0);
 
 
 		//AfxMessageBox(stream_info);
 		m_outputinfo.SetWindowText(stream_info);
 		pFrame=av_frame_alloc();  //解码后的数据
-		pFrameYUV=av_frame_alloc();  //解码后的数据
+		//pFrameYUV=av_frame_alloc();  //解码后的数据
 
   
-		uint8_t *out_buffer;  
+		//uint8_t *out_buffer;  
 
-		out_buffer=new uint8_t[avpicture_get_size(AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height)];  
-		avpicture_fill((AVPicture *)pFrameYUV, out_buffer, AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height);  
+		//out_buffer=new uint8_t[avpicture_get_size(AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height)];  
+		//avpicture_fill((AVPicture *)pFrameYUV, out_buffer, AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height);  
 
 
 		//这一句 不知道有啥用
@@ -575,26 +597,37 @@ BOOL CParseVideoDlg::ParseVideo(void)
 
 
 
+		//img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,   
+		//	pCodecCtx->width, pCodecCtx->height, AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
+
 		img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,   
-			pCodecCtx->width, pCodecCtx->height, AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
+			pCodecCtx->width, pCodecCtx->height, AV_PIX_FMT_RGB32, SWS_BILINEAR, NULL, NULL, NULL);
 
 
-
-
-
+		//计数
+		int nIndex = 0;
 		while(av_read_frame(pFormatCtx, packet)>=0){  //av_read_frame读取一帧
 			if(packet->stream_index==videoindex){  //对比媒体流的索引
+
+
 				ret = avcodec_decode_video2(pCodecCtx, pFrame, &got_picture, packet);	//avcodec_decode_video2 解码
 				if(ret < 0){  
 					AfxMessageBox(_T("解码时发生错误"));  
 					return FALSE;  
 				}  
+				if(nIndex<nIndexBegin)
+				{
+					nIndex ++;
+					continue;
+				}
+				if(nIndex>=nIndexBegin+MAX_FRAME_COUNT)
+					break;
 
 				int nRow = m_listFrames.InsertItem(m_listFrames.GetItemCount(),_T(""));
 				stream_info.Format(_T("%d"),pFrame->coded_picture_number);
 				m_listFrames.SetItemText(nRow,0,stream_info);
-				if(nRange!=0)
-					m_parseProgress.SetPos((double)pFrame->coded_picture_number/(double)nRange*100);
+				//if(nRange!=0)
+				//	m_parseProgress.SetPos((double)pFrame->coded_picture_number/(double)nRange*100);
 
 				stream_info.Format(_T("%d"),pFrame->display_picture_number);
 				m_listFrames.SetItemText(nRow,1,stream_info);
@@ -621,12 +654,18 @@ BOOL CParseVideoDlg::ParseVideo(void)
 				//	m_parseProgress.SetPos((double)pFrame->pts/(double)secs/(double)10);
 				if(got_picture){  
 					//AVFrame *pFrameYUV=av_frame_alloc();  //解码后的数据
+					uint8_t *rgb_data = static_cast<uint8_t*>(av_malloc(pCodecCtx->width*pCodecCtx->height*4));
+					uint8_t *rgb_src[3]= {rgb_data, NULL, NULL};
+					int rgb_stride[3]={4*pCodecCtx->width, 0, 0};
+					//int nres = sws_scale(img_convert_ctx, (const unsigned char* const*)pFrame->data, pFrame->linesize, 0, pCodecCtx->height,   
+					//	pFrameYUV->data, pFrameYUV->linesize);
 					int nres = sws_scale(img_convert_ctx, (const unsigned char* const*)pFrame->data, pFrame->linesize, 0, pCodecCtx->height,   
-						pFrameYUV->data, pFrameYUV->linesize);
+						rgb_src, rgb_stride);
+
 						BITMAP_DATA* pdata = new BITMAP_DATA;
 						int nBmpCount = 0;
-						pdata->pdata = freerdp_bitmap_write_mem(pFrameYUV->data[0],pCodecCtx->width,pCodecCtx->height,24,&nBmpCount);
-						
+						//pdata->pdata = freerdp_bitmap_write_mem(pFrameYUV->data[0],pCodecCtx->width,pCodecCtx->height,24,&nBmpCount);
+						pdata->pdata = freerdp_bitmap_write_mem(rgb_data,pCodecCtx->width,pCodecCtx->height,32,&nBmpCount);
 						pdata->data_count = nBmpCount;
 
 						int nResKb = nBmpCount/1024;
@@ -635,27 +674,34 @@ BOOL CParseVideoDlg::ParseVideo(void)
 						else
 							stream_info.Format(_T("%.2f MB"),(double)nResKb/1024);
 						m_listFrames.SetItemText(nRow,7,stream_info);
-
-
 						m_listFrames.SetItemData(nRow,(DWORD_PTR)pdata);
 
 
 				}  
+				m_parseProgress.StepIt();
+				nIndex ++;
 			}  
 			av_free_packet(packet);  
+			
 		}  
 		sws_freeContext(img_convert_ctx);
 
 
-		av_frame_free(&pFrameYUV);  
+		//av_frame_free(&pFrameYUV);  
 
 		av_frame_free(&pFrame);  
 		avcodec_close(pCodecCtx);  
 		avformat_close_input(&pFormatCtx);  
 
-		delete out_buffer;
-		m_parseProgress.SetPos(100);
-		MessageBox(_T("解析完毕"),_T("提示"));
+		//delete out_buffer;
+		m_parseProgress.SetPos(200);
+		CString strOutPut;
+		int nInterVal = nIndex - nIndexBegin;
+		if(nInterVal>0)
+			strOutPut.Format(_T("解析完毕,共解析了%d帧"),nInterVal);
+		else
+			strOutPut.Format(_T("解析完毕,共解析了0帧"));
+		MessageBox(strOutPut,_T("提示"));
 		return FALSE;
 }
 

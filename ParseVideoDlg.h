@@ -53,4 +53,5 @@ public:
 	void CleanItemData(void);
 	afx_msg void OnMove(int x, int y);
 	afx_msg void OnNMRClickListFrames(NMHDR *pNMHDR, LRESULT *pResult);
+	CString m_Indexbegin;
 };
